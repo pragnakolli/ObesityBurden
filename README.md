@@ -1,61 +1,52 @@
-# v2 Engine — member-level analysis (synthetic demo)
+[GitHub-README.md](https://github.com/user-attachments/files/28724018/GitHub-README.md)
+# Obesity Burden Navigator
+**Turning free public health data into a Medicaid planning tool.**
 
-This folder is the **v2 engine**: the member-level analysis that runs on a health plan's own
-enrollment/claims data instead of public aggregates.
+🔗 **Live demo:** https://pragnakolli.github.io/ObesityBurden/
+📄 **v2 sample (member-level, synthetic):** https://pragnakolli.github.io/ObesityBurden/v2-Engine/v2_sample_report.html
 
-## About the data in this demo
-The sample here runs on **synthetic data** — fabricated members calibrated to public benchmarks,
-containing **no real patients and no PHI**. It demonstrates exactly what the engine computes; the
-figures are illustrative, not real-world findings. The engine reads a pluggable CSV (schema below),
-so the same analysis runs on a plan's own extract inside their environment (see *Compliance framing*).
+---
 
-## Files
-- `v2_engine.py` — generator + analysis + HTML report writer.
-- `synthetic_medicaid_members.csv` — 50,000 synthetic NJ Medicaid members (the stand-in "claims extract").
-- `v2_sample_report.html` — the engine's output readout. **Open this to see what v2 produces.**
+## The problem
+Medicaid and population-health teams plan obesity and GLP-1 budgets off the published state
+obesity rate (~28% in New Jersey). For a Medicaid book that number is **wrong three ways**: it's
+self-reported (understated), it's the general population (not the low-income Medicaid group), and
+it's a single statewide figure that hides where the burden actually sits.
 
-## How to run
-```
-python3 v2_engine.py      # writes the CSV + the HTML report
-```
+## What this does (the public demo — `index.html`)
+Pick any U.S. state; it pulls **live CDC data** and returns:
+- A **calibrated Medicaid-eligible obesity rate** (~40% in NJ vs. the ~28% headline) — re-based to
+  the low-income population and corrected for survey under-reporting using a factor **derived from
+  NHANES 2021–23 vs BRFSS for the low-income group (×1.16)**.
+- **County targeting** — a priority list blending a need-index (obesity + diabetes + inactivity)
+  with population volume.
+- The **obesity–diabetes overlap**, a **disparities lens**, and an editable **GLP-1 budget-impact
+  scenario**.
+- A built-in **methodology panel** and explicit limitations.
+- Multi-state **compare views** across all four Census regions + a national ranking.
 
-## Input schema (pluggable — this is what makes it swappable)
-One row per enrollee. Point `load_members(path)` at any CSV with these columns:
+## The v2 engine (`v2-Engine/`)
+The public demo *estimates* the Medicaid rate from public aggregates. The v2 engine **measures** it
+on a plan's own member-level data — exact prevalence, spend, and county counts, plus a GLP-1 scenario
+with a differential medical-cost offset (concentrated in the obesity+diabetes subgroup). The sample
+report here runs on **synthetic data calibrated to public benchmarks** (no real patients, no PHI).
+In a real engagement it runs inside the client's environment under a BAA.
 
-| column | meaning |
-|---|---|
-| `member_id` | unique enrollee id |
-| `age`, `sex` | demographics |
-| `county` | county name (for geographic targeting) |
-| `bmi_class` | `<30` / `30-34.9` / `35-39.9` / `40+` |
-| `obese`, `severe_obese` | 0/1 flags (BMI ≥30, ≥40) |
-| `diabetes` | 0/1 flag |
-| `enrolled_months_2023` | 1–12 (for continuous-enrollment filtering / churn) |
-| `total_medical_paid_2023` | annual medical $ paid (ex-pharmacy) |
+**In one line:** *the public version tells you the problem is real and roughly how big; the version
+on your data tells you exactly how big, where, and what to do about it.*
 
-Synthea or a real client extract just needs to be mapped to these columns.
+## Data & method
+CDC **BRFSS** (state + income), CDC **PLACES** (county), **NHANES** (measured-vs-self-report
+correction), **MEPS** (excess cost: $1,861/adult, $3,097 severe — Cawley et al., JMCP 2021), and
+2026 FPL/expansion thresholds. This is **calibrated estimation**, not a predictive model.
 
-## What it computes (the v2 value)
-- **Measured** obesity / diabetes / comorbid prevalence — no FPL proxy, no self-report correction
-  (that's the whole point of having real member data).
-- **Adjusted excess cost** (age/sex-standardized, continuous enrollees) → total addressable $.
-- **County targeting** — need-index × volume priority list, on actual members.
-- **GLP-1 scenario** with a **differential offset** (0% obesity-only, ~8% obesity+diabetes) — reflecting
-  that offsets concentrate in the comorbid group.
+## Honest caveats
+- Public data is a **proxy** for the Medicaid population, not the enrollees themselves.
+- The self-report correction is a national-vs-subgroup factor — read calibrated rates as a range.
+- Cost and GLP-1 figures are **illustrative** until run on a plan's real claims.
+- The v2 sample uses **synthetic** data — it demonstrates the machinery, not real findings.
+- Not clinical or individual guidance.
 
-## v1 vs v2 (the difference)
-- **v1 (public demo):** *estimates* the Medicaid rate from public data (income proxy + self-report
-  correction). Good for "is there a problem here?"
-- **v2 (this):** *measures* it on the plan's own members — exact prevalence, spend, and county counts
-  they can budget against.
-
-## Compliance framing (real engagement)
-In a paid engagement this runs **inside the client's environment under a BAA** — their data never
-leaves their walls; only aggregate outputs (county rollups, with small-cell suppression) come back.
-The synthetic dataset here is for demonstration only — not real patients, not clinical guidance.
-
-## Calibration (so the demo is defensible)
-Synthetic data (seed 42) tuned to: ~40% low-income obesity (NHANES 2021–23), obesity–diabetes county
-correlation ≈0.65–0.70, MEPS excess cost $1,861/$3,097 (Cawley 2021). Realized in this run:
-40.8% obesity, r=0.65, ~$3,001 adjusted excess/member (higher than $1,861 because obese members carry
-comorbid-diabetes cost — itself a finding the engine surfaces).
+## Build
+Single-file HTML calling public APIs from the browser (no backend, no cost); v2 engine in Python.
+Built solo, AI-assisted, on $0 of data.
