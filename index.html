@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Obesity Burden Navigator</title>
+<style>
+  :root{
+    --bg:#0f1720; --panel:#16212e; --panel2:#1d2c3d; --ink:#e8eef5; --muted:#9fb0c3;
+    --line:#27384c; --accent:#3ea6ff; --warn:#ffb454; --bad:#ff6b6b; --good:#5ad19a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  header{padding:22px 26px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#13202e,#0f1720)}
+  h1{margin:0;font-size:21px;letter-spacing:.2px}
+  .sub{color:var(--muted);font-size:13px;margin-top:4px}
+  .wrap{max-width:1080px;margin:0 auto;padding:22px 26px 60px}
+  .controls{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px}
+  label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
+  select,input{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:15px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:8px 0 22px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .card .big{font-size:30px;font-weight:700;line-height:1.1}
+  .card .lbl{font-size:12px;color:var(--muted);margin-top:6px}
+  .card.accent{border-color:#2c5d86}.card.accent .big{color:var(--accent)}
+  .card.warn .big{color:var(--warn)} .card.bad .big{color:var(--bad)} .card.good .big{color:var(--good)}
+  section{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:18px}
+  section h2{margin:0 0 4px;font-size:16px}
+  section .note{color:var(--muted);font-size:13px;margin:0 0 14px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.4px;cursor:pointer;user-select:none}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .bar{height:9px;border-radius:5px;background:var(--accent);opacity:.85}
+  .barwrap{background:#0c141d;border-radius:5px;overflow:hidden;min-width:60px}
+  .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px;background:#27384c}
+  .pill.prio{background:#3a2a12;color:var(--warn)}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:760px){.two{grid-template-columns:1fr}}
+  .calc{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+  .step{display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px dashed var(--line)}
+  .step:last-child{border-bottom:0}
+  .step .n{width:26px;height:26px;border-radius:50%;background:var(--panel2);display:grid;place-items:center;font-size:13px;color:var(--accent);flex:0 0 auto}
+  .step .v{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums}
+  footer{color:var(--muted);font-size:12px;border-top:1px solid var(--line);padding:18px 26px;max-width:1080px;margin:0 auto}
+  a{color:var(--accent)}
+  .loading{color:var(--muted);padding:40px;text-align:center}
+  .err{color:var(--bad);padding:16px;border:1px solid #5a2b2b;border-radius:10px;background:#241516}
+  .tag{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:2px 7px;margin-left:6px}
+  .disc{font-size:12px;color:var(--muted);font-style:italic;margin-top:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Obesity Burden Navigator <span class="tag">live CDC data · demo</span></h1>
+  <div class="sub">Where obesity burden concentrates, what it means for the Medicaid-eligible population, and what it may cost — for any U.S. state. Decision support, not a predictive model.</div>
+</header>
+
+<div class="wrap">
+  <div class="controls">
+    <div>
+      <label for="view">View</label>
+      <select id="view">
+        <option value="single" selected>Single state</option>
+        <option value="Northeast">Northeast compare</option>
+        <option value="Midwest">Midwest compare</option>
+        <option value="South">South compare</option>
+        <option value="West">West compare</option>
+        <option value="National">National (all 50 + DC)</option>
+      </select>
+    </div>
+    <div id="stateWrap">
+      <label for="state">State</label>
+      <select id="state"></select>
+    </div>
+    <div id="livesWrap">
+      <label for="lives">Medicaid adult covered lives (optional)</label>
+      <input id="lives" type="number" placeholder="e.g. 800000" style="width:230px">
+    </div>
+    <div>
+      <label>&nbsp;</label>
+      <button onclick="window.print()" style="background:var(--accent);color:#06121f;border:0;border-radius:8px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer">⤓ Save / print readout</button>
+    </div>
+  </div>
+
+  <div id="status" class="loading">Pick a state to load live data…</div>
+  <div id="report" style="display:none">
+
+    <div class="cards" id="cards"></div>
+
+    <section>
+      <h2>The Medicaid correction — three steps from headline to reality</h2>
+      <p class="note">The published state obesity rate is the wrong number for a Medicaid book. Three corrections fix it.</p>
+      <div id="calib"></div>
+      <div class="disc" id="calibDisc"></div>
+    </section>
+
+    <section>
+      <h2>Addressable annual cost <span class="tag">MEPS-based</span></h2>
+      <p class="note">Excess medical cost ≈ $1,861 per adult with obesity per year ($3,097 severe) — Cawley et al., JMCP 2021 (MEPS 2011–16, all-payer; likely conservative for Medicaid). Enter your covered lives above for your number.</p>
+      <div id="cost"></div>
+    </section>
+
+    <section>
+      <h2>GLP-1 budget-impact scenario <span class="tag">illustrative</span></h2>
+      <p class="note">A simple "what if we treat some of them" model. All inputs are editable assumptions — a planning sketch, not a forecast. Reference points (2025–26): net GLP-1 cost ≈ $2,940/yr under Medicaid (BALANCE model) to $6,200–8,400 commercial after rebates; short-term medical offset ≈ 0% for obesity-only populations (offsets appear mainly in the obesity+diabetes subgroup).</p>
+      <div class="calc">
+        <div><label>% of members with obesity treated</label><input id="sc_pct" type="number" value="10" style="width:120px"></div>
+        <div><label>Net annual drug cost / treated member ($)</label><input id="sc_cost" type="number" value="5000" style="width:160px"></div>
+        <div><label>Expected medical cost offset (%)</label><input id="sc_off" type="number" value="0" style="width:140px"></div>
+      </div>
+      <div id="scenario" style="margin-top:14px"></div>
+    </section>
+
+    <section>
+      <h2>Who carries the burden — disparities <span class="tag">BRFSS</span></h2>
+      <p class="note">Obesity by race/ethnicity (latest available). Medicaid populations skew toward higher-prevalence groups — another reason the state average understates the Medicaid rate.</p>
+      <div id="disparity"></div>
+    </section>
+
+    <div class="two">
+      <section>
+        <h2>Priority counties</h2>
+        <p class="note">Above the state median on <b>both</b> need-intensity and volume — start here.</p>
+        <div id="priority"></div>
+      </section>
+      <section>
+        <h2>It compounds</h2>
+        <p class="note">Obesity & diabetes co-locate across counties.</p>
+        <div id="compound"></div>
+      </section>
+    </div>
+
+    <section>
+      <h2>County burden <span class="tag" id="countyCount"></span></h2>
+      <p class="note">Click a column header to sort. Index = standardized blend of obesity + diabetes + inactivity. Volume = est. adults with obesity.</p>
+      <div style="overflow:auto"><table id="countyTbl"></table></div>
+    </section>
+
+    <section>
+      <h2>State trend vs U.S.</h2>
+      <p class="note">Adult obesity prevalence (self-reported, BRFSS).</p>
+      <div id="trend"></div>
+    </section>
+
+    <section>
+      <h2>How this is calculated <span class="tag">methodology</span></h2>
+      <div id="method"></div>
+    </section>
+
+  </div>
+
+  <div id="compare" style="display:none">
+    <div class="cards" id="cmpCards"></div>
+    <section>
+      <h2 id="cmpTitle">Calibrated Medicaid-eligible obesity, ranked <span class="tag" id="cmpTag"></span></h2>
+      <p class="note" id="cmpNote">Same engine as the single-state view, run across the region. The <b>headline</b> is the published state rate; the <b>calibrated</b> column applies the Medicaid low-income proxy + the NHANES self-report correction (×1.16, low-income-specific). Click a column to sort.</p>
+      <div style="overflow:auto"><table id="cmpTbl"></table></div>
+      <div class="disc" id="cmpDisc"></div>
+    </section>
+    <section>
+      <h2>What this says</h2>
+      <div id="cmpInsight" class="note"></div>
+    </section>
+  </div>
+
+  <section style="border-color:#2c5d86;background:linear-gradient(180deg,#16263a,#16212e)">
+    <h2>From estimate to measurement — your own data <span class="tag">paid engine</span></h2>
+    <p class="note" style="margin-bottom:12px">Everything above is a <b>public-data proxy</b>: it re-bases the state headline to the Medicaid-eligible group and corrects self-report bias, then shown as a range. It's built to <b>rank and size</b> the problem — not to budget against. Point the same engine at a plan's own enrollment/claims and the proxy disappears:</p>
+    <div class="two">
+      <div>
+        <div class="lbl" style="margin-bottom:6px">This demo (public data)</div>
+        <div class="note" style="margin:0">Calibrated <b>estimate</b> via FPL proxy + self-report correction · county prevalence from modeled PLACES estimates · illustrative cost &amp; GLP-1 figures. Answers: <i>"is there a problem worth my attention?"</i></div>
+      </div>
+      <div>
+        <div class="lbl" style="margin-bottom:6px">Paid v2 engine (your members)</div>
+        <div class="note" style="margin:0"><b>Measured</b> prevalence — no proxy, no correction · exact spend &amp; county counts on real members · GLP-1 scenario with the obesity+diabetes high-cost core. Runs <b>inside your environment under a BAA</b>; only aggregate rollups leave. Answers: <i>"exactly how big, and what does it cost us?"</i></div>
+      </div>
+    </div>
+    <div class="disc" style="margin-top:12px">If the directional picture above maps to a real problem, the exact version is a scoped pilot on your own data. That's the conversation worth having.</div>
+    <p style="margin-top:10px"><a href="https://pragnakolli.github.io/ObesityBurden/v2-Engine/v2_sample_report.html" target="_blank" rel="noopener"><b>▸ See a sample v2 readout</b></a> — the same analysis run on member-level (synthetic) data.</p>
+  </section>
+</div>
+
+<footer>
+  <b>Sources (free, public):</b> CDC BRFSS — obesity by state &amp; income (data.cdc.gov <code>hn4x-zwk7</code>); CDC PLACES — county obesity/diabetes/inactivity (<code>swc5-untb</code>); NHANES (self-report correction); MEPS/AHRQ (cost); KFF/HealthCare.gov (2026 FPL &amp; expansion).<br>
+  <b>Read this as:</b> BRFSS is self-reported (understates true obesity); PLACES are modeled estimates (good for prioritizing, not billing); the self-report correction (×1.16) is derived from national NHANES 2021–23 vs BRFSS for the low-income group and applied to each state's proxy (use as a range); cost figures are Cawley et al. 2021 (MEPS, all-payer) and population figures are illustrative until replaced with a plan's actual enrollment/claims. This is a public-data proxy for the Medicaid population, not the enrollees themselves.
+</footer>
+
+<script>
+const STATES={AL:"Alabama",AK:"Alaska",AZ:"Arizona",AR:"Arkansas",CA:"California",CO:"Colorado",CT:"Connecticut",DE:"Delaware",DC:"District of Columbia",FL:"Florida",GA:"Georgia",HI:"Hawaii",ID:"Idaho",IL:"Illinois",IN:"Indiana",IA:"Iowa",KS:"Kansas",KY:"Kentucky",LA:"Louisiana",ME:"Maine",MD:"Maryland",MA:"Massachusetts",MI:"Michigan",MN:"Minnesota",MS:"Mississippi",MO:"Missouri",MT:"Montana",NE:"Nebraska",NV:"Nevada",NH:"New Hampshire",NJ:"New Jersey",NM:"New Mexico",NY:"New York",NC:"North Carolina",ND:"North Dakota",OH:"Ohio",OK:"Oklahoma",OR:"Oregon",PA:"Pennsylvania",RI:"Rhode Island",SC:"South Carolina",SD:"South Dakota",TN:"Tennessee",TX:"Texas",UT:"Utah",VT:"Vermont",VA:"Virginia",WA:"Washington",WV:"West Virginia",WI:"Wisconsin",WY:"Wyoming"};
+// Medicaid NON-expansion states (2026)
+const NON_EXPANSION=new Set(["AL","FL","GA","KS","MS","SC","TN","TX","WI","WY"]);
+const FPL138_BY_STATE={AK:27531,HI:25337};  // higher FPL regions, 2026
+const FPL138_SINGLE=20782;          // 138% FPL, single adult, 2026 (contiguous US)
+const fpl138=ab=>FPL138_BY_STATE[ab]||FPL138_SINGLE;
+const SELF_REPORT_CORRECTION=1.16;  // low-income-specific: NHANES 2021-23 measured 43.4% / BRFSS low-income self-report 37.4% (all-adult factor is 1.22)
+const NHANES_LOWINC_MEASURED=43.4;  // NHANES 2021-23 measured obesity, <138% FPL — national anchor
+const EXCESS_COST=1861;             // MEPS excess annual medical cost per adult w/ obesity — Cawley et al., JMCP 2021 (MEPS 2011-16, all-payer)
+const BR="https://data.cdc.gov/resource/hn4x-zwk7.json";
+const PL="https://data.cdc.gov/resource/swc5-untb.json";
+// U.S. Census Bureau regions (50 states + DC, mutually exclusive & exhaustive).
+const REGIONS={
+  Northeast:["CT","ME","MA","NH","RI","VT","NJ","NY","PA"],
+  Midwest:["IL","IN","MI","OH","WI","IA","KS","MN","MO","NE","ND","SD"],
+  South:["DE","DC","FL","GA","MD","NC","SC","VA","WV","AL","KY","MS","TN","AR","LA","OK","TX"],
+  West:["AZ","CO","ID","MT","NV","NM","UT","WY","AK","CA","HI","OR","WA"]
+};
+REGIONS.National=Object.keys(STATES);   // all 50 + DC
+// Per-region reference state to anchor "where do I sit?" (most-populous / largest Medicaid book;
+// NJ stays the anchor in Northeast & National as the product's home state).
+const REGION_REF={Northeast:"NJ",Midwest:"IL",South:"TX",West:"CA",National:"NJ"};
+const regionLabel=r=>r==='National'?'National':r;
+const regionUnit=r=>r==='National'?'jurisdictions':'states';
+// Run async fn over items in sequential batches (preserves order; caps concurrency so the
+// National view's ~100 CDC calls don't trip Socrata rate limits).
+async function runBatched(items,fn,size){
+  const out=[];
+  for(let i=0;i<items.length;i+=size){
+    out.push(...await Promise.all(items.slice(i,i+size).map(fn)));
+  }
+  return out;
+}
+
+const sel=document.getElementById('state');
+Object.keys(STATES).forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=STATES[a];if(a==='NJ')o.selected=true;sel.appendChild(o);});
+
+const $=id=>document.getElementById(id);
+const fmt=n=>n.toLocaleString('en-US');
+const pct=n=>n.toFixed(1)+'%';
+async function getJSON(url){const r=await fetch(url);if(!r.ok)throw new Error('CDC API '+r.status);return r.json();}
+function mean(a){return a.reduce((x,y)=>x+y,0)/a.length;}
+function std(a){const m=mean(a);return Math.sqrt(mean(a.map(x=>(x-m)**2)));}
+function median(a){const s=[...a].sort((x,y)=>x-y);const m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2;}
+function corr(x,y){const mx=mean(x),my=mean(y);let n=0,dx=0,dy=0;for(let i=0;i<x.length;i++){n+=(x[i]-mx)*(y[i]-my);dx+=(x[i]-mx)**2;dy+=(y[i]-my)**2;}return n/Math.sqrt(dx*dy);}
+
+// Shared calibration engine — identical methodology for single-state and compare views.
+function calibrate(ab, trendRows, incomeRows){
+  const tr=trendRows.filter(r=>r.data_value).map(r=>({y:+r.yearstart,v:+r.data_value})).sort((a,b)=>a.y-b.y);
+  const latest=tr[tr.length-1]||{v:NaN,y:''};
+  const low=incomeRows.filter(r=>r.data_value&&(r.stratification1==='Less than $15,000'||r.stratification1==='$15,000 - $24,999')).map(r=>+r.data_value);
+  const haveIncome=low.length>0;
+  const lowProxy=haveIncome?mean(low.slice(-6)):latest.v;   // fallback: state total if income cells unavailable
+  const corrected=lowProxy*SELF_REPORT_CORRECTION;
+  return {tr,latest,haveIncome,lowProxy,corrected,expansion:!NON_EXPANSION.has(ab)};
+}
+
+let countyData=[], sortKey='index', sortDir=-1;
+let cmpData=[], cmpSortKey='corrected', cmpSortDir=-1, cmpRef='NJ';
+
+async function load(){
+  const ab=sel.value, name=STATES[ab];
+  $('report').style.display='none';
+  $('status').className='loading'; $('status').textContent='Loading live CDC data for '+name+'…';
+  try{
+    const [trend,us,income,race,cOb,cDia,cLpa]=await Promise.all([
+      getJSON(`${BR}?locationabbr=${ab}&questionid=Q036&stratification1=Total&$select=yearstart,data_value&$order=yearstart&$limit=400`),
+      getJSON(`${BR}?locationabbr=US&questionid=Q036&stratification1=Total&$select=yearstart,data_value&$order=yearstart&$limit=400`),
+      getJSON(`${BR}?locationabbr=${ab}&questionid=Q036&stratificationcategory1=Income&$select=yearstart,stratification1,data_value&$order=yearstart&$limit=400`),
+      getJSON(`${BR}?locationabbr=${ab}&questionid=Q036&stratificationcategory1=Race%2FEthnicity&$select=yearstart,stratification1,data_value&$order=yearstart&$limit=400`),
+      getJSON(`${PL}?stateabbr=${ab}&datavaluetypeid=CrdPrv&measureid=OBESITY&$select=locationname,data_value,totalpop18plus&$limit=400`),
+      getJSON(`${PL}?stateabbr=${ab}&datavaluetypeid=CrdPrv&measureid=DIABETES&$select=locationname,data_value&$limit=400`),
+      getJSON(`${PL}?stateabbr=${ab}&datavaluetypeid=CrdPrv&measureid=LPA&$select=locationname,data_value&$limit=400`)
+    ]);
+    render(ab,name,{trend,us,income,race,cOb,cDia,cLpa});
+    $('status').style.display='none'; $('report').style.display='block';
+  }catch(e){
+    $('status').className=''; $('status').innerHTML='<div class="err">Could not load CDC data: '+e.message+'. The CDC API may be momentarily unavailable — try again, or check your connection.</div>';
+  }
+}
+
+function render(ab,name,d){
+  // ---- state trend + calibration (shared engine) ----
+  const c=calibrate(ab,d.trend,d.income);
+  const tr=c.tr, latest=c.latest, lowProxy=c.lowProxy, corrected=c.corrected, haveIncome=c.haveIncome, expansion=c.expansion;
+  const usr=d.us.filter(r=>r.data_value).map(r=>({y:+r.yearstart,v:+r.data_value}));
+
+  // ---- counties merge ----
+  const dia={},lpa={};
+  d.cDia.forEach(r=>{if(r.data_value)dia[r.locationname]=+r.data_value;});
+  d.cLpa.forEach(r=>{if(r.data_value)lpa[r.locationname]=+r.data_value;});
+  let rows=d.cOb.filter(r=>r.data_value).map(r=>({
+    county:r.locationname, ob:+r.data_value, pop:+r.totalpop18plus||0,
+    dia:dia[r.locationname], lpa:lpa[r.locationname]
+  }));
+  const noCounty = rows.length===0;   // some states (e.g. KY, PA) lack county obesity in the CDC release
+  let spread=null, obDiaCorr=null;
+  if(!noCounty){
+    const obArr=rows.map(r=>r.ob), diArr=rows.map(r=>r.dia??mean(Object.values(dia))), lpArr=rows.map(r=>r.lpa??mean(Object.values(lpa)));
+    const mo=mean(obArr),so=std(obArr),md=mean(diArr),sd=std(diArr),ml=mean(lpArr),sl=std(lpArr);
+    const z=(v,m,s)=>s>0?(v-m)/s:0;   // guard single-county / zero-variance (e.g. DC)
+    rows.forEach((r,i)=>{
+      r.index=(z(r.ob,mo,so)+z(diArr[i],md,sd)+z(lpArr[i],ml,sl))/3;
+      r.vol=r.ob/100*r.pop;
+    });
+    const medI=median(rows.map(r=>r.index)), medV=median(rows.map(r=>r.vol));
+    rows.forEach(r=>r.prio=r.index>medI&&r.vol>medV);
+    spread=Math.max(...obArr)-Math.min(...obArr);
+    obDiaCorr=corr(obArr,diArr);
+  }
+  countyData=rows;
+
+  // ---- cards ----
+  const countyCards = noCounty
+    ? `<div class="card warn"><div class="big">—</div><div class="lbl">County detail unavailable for ${name} in the current CDC PLACES release (affects KY &amp; PA only; 49 states + DC have it)</div></div>`
+    : `<div class="card warn"><div class="big">${spread.toFixed(1)} pts</div><div class="lbl">County spread (${Math.min(...rows.map(r=>r.ob))}%–${Math.max(...rows.map(r=>r.ob))}%)</div></div>
+       <div class="card"><div class="big">r=${obDiaCorr.toFixed(2)}</div><div class="lbl">Obesity–diabetes county correlation</div></div>`;
+  $('cards').innerHTML=`
+    <div class="card"><div class="big">${pct(latest.v)}</div><div class="lbl">State headline obesity (${tr[tr.length-1]?.y||''}, self-reported)</div></div>
+    <div class="card accent"><div class="big">~${Math.round(corrected)}%</div><div class="lbl">Calibrated Medicaid-eligible obesity (FPL proxy + self-report correction)</div></div>
+    ${countyCards}`;
+
+  // ---- calibration steps ----
+  $('calib').innerHTML=`
+    <div class="step"><div class="n">1</div><div><b>Right population.</b> ${name} is ${expansion?'a Medicaid <b>expansion</b> state — adults qualify up to <b>138% FPL</b> (~$'+fmt(fpl138(ab))+'/yr single, 2026)':'a <b>non-expansion</b> state — adult Medicaid limits are far lower, so the low-income proxy understates exclusion effects'}. Use the low-income group, not the state average.${haveIncome?'':' <i>(Income breakdown unavailable for this state — using the state rate as a floor; the true Medicaid rate is higher.)</i>'}</div><div class="v">${pct(lowProxy)}</div></div>
+    <div class="step"><div class="n">2</div><div><b>Right measurement.</b> Self-reported BRFSS understates obesity; apply the NHANES correction <i>for the low-income group</i> (×${SELF_REPORT_CORRECTION}, from NHANES 2021–23 measured 43.4% ÷ BRFSS self-report 37.4%).</div><div class="v">≈ ${isNaN(corrected)?'n/a':Math.round(corrected)+'%'}</div></div>
+    <div class="step"><div class="n">3</div><div><b>Right unit.</b> Translate prevalence to dollars via MEPS (next panel).</div><div class="v">→ $</div></div>`;
+  $('calibDisc').textContent='Headline '+pct(latest.v)+' → calibrated ≈ '+Math.round(corrected)+'% for the Medicaid-eligible population (~'+(corrected/latest.v).toFixed(1)+'× the headline). The ×'+SELF_REPORT_CORRECTION+' correction is derived from current NHANES 2021–23 measured vs BRFSS self-report obesity for the low-income group (43.4% ÷ 37.4%); read as a range (~'+Math.round(corrected-2)+'–'+Math.round(corrected+2)+'%), anchored to the '+NHANES_LOWINC_MEASURED+'% national measured low-income rate.';
+
+  renderCost(corrected);
+  renderScenario(corrected);
+  $('lives').oninput=()=>{renderCost(corrected);renderScenario(corrected);};
+  ['sc_pct','sc_cost','sc_off'].forEach(id=>$(id).oninput=()=>renderScenario(corrected));
+  renderDisparity(d.race);
+  renderMethod(ab,name,lowProxy,corrected,haveIncome);
+
+  // ---- priority + compound + county table (county-dependent) ----
+  if(noCounty){
+    const msg=`<div class="note">County-level estimates aren't published for <b>${name}</b> in the current CDC PLACES release (a known gap affecting only KY &amp; PA). State-level analysis above is unaffected; county targeting returns automatically when CDC restores these states.</div>`;
+    $('priority').innerHTML=msg; $('compound').innerHTML=msg;
+    $('countyCount').textContent='unavailable';
+    $('countyTbl').innerHTML='<tr><td class="note">No county data for this state in the current release.</td></tr>';
+  }else{
+    const prio=rows.filter(r=>r.prio).sort((a,b)=>b.vol-a.vol);
+    const acuity=[...rows].sort((a,b)=>b.index-a.index)[0];
+    $('priority').innerHTML = (prio.length?prio.map(r=>`<div style="padding:6px 0;border-bottom:1px solid var(--line)"><span class="pill prio">priority</span> <b>${r.county}</b> — ${pct(r.ob)} obesity · ${fmt(Math.round(r.vol))} adults</div>`).join(''):'<div class="note">No county clears both medians.</div>')
+      + `<div style="margin-top:10px" class="note">Highest-acuity outlier: <b>${acuity.county}</b> (index ${acuity.index>=0?'+':''}${acuity.index.toFixed(2)}, obesity ${pct(acuity.ob)}).</div>`;
+    $('compound').innerHTML=`<div style="font-size:34px;font-weight:700;color:${obDiaCorr>0.5?'var(--bad)':'var(--ink)'}">r = ${obDiaCorr.toFixed(2)}</div>
+      <div class="note">Across ${rows.length} counties, obesity and diabetes prevalence move together. Targeting obesity in the priority counties is simultaneously a diabetes-cost intervention — the core of the GLP-1 / care-management ROI case.</div>`;
+    $('countyCount').textContent=rows.length+' counties';
+    drawTable();
+  }
+
+  // ---- trend bars ----
+  const allV=[...tr.map(r=>r.v),...usr.map(r=>r.v)],maxV=Math.max(...allV);
+  const yrs=tr.map(r=>r.y);
+  $('trend').innerHTML='<table><tr><th>Year</th><th class="num">'+name+'</th><th></th><th class="num">U.S.</th></tr>'+
+    yrs.map(y=>{const s=tr.find(r=>r.y===y),u=usr.find(r=>r.y===y);
+      return '<tr><td>'+y+'</td><td class="num">'+(s?pct(s.v):'—')+'</td><td style="width:46%"><div class="barwrap"><div class="bar" style="width:'+(s?(s.v/maxV*100):0)+'%"></div></div></td><td class="num" style="color:var(--muted)">'+(u?pct(u.v):'—')+'</td></tr>';
+    }).join('')+'</table>';
+}
+
+function renderCost(rate){
+  const lives=+$('lives').value;
+  if(!lives){ $('cost').innerHTML='<div class="note">Enter Medicaid adult covered lives above to compute your figure. Illustrative: 500k lives → ~$'+fmt(Math.round(500000*rate/100*EXCESS_COST/1e6))+'M/yr · 800k → ~$'+fmt(Math.round(800000*rate/100*EXCESS_COST/1e6))+'M/yr.</div>'; return; }
+  const obese=lives*rate/100, cost=obese*EXCESS_COST;
+  $('cost').innerHTML=`<div class="cards">
+    <div class="card"><div class="big">${fmt(Math.round(obese))}</div><div class="lbl">Est. adults with obesity (~${Math.round(rate)}%)</div></div>
+    <div class="card bad"><div class="big">$${fmt(Math.round(cost/1e6))}M</div><div class="lbl">Excess annual medical cost</div></div>
+    <div class="card"><div class="big">$${fmt(Math.round(EXCESS_COST))}</div><div class="lbl">Excess cost / adult w/ obesity (MEPS)</div></div></div>
+    <div class="disc">Illustrative: ${fmt(lives)} lives × ${Math.round(rate)}% × $${fmt(EXCESS_COST)}. Replace with the plan's actual enrollment &amp; claims for the real figure.</div>`;
+}
+
+function renderScenario(rate){
+  const entered=+$('lives').value, used=entered||800000;
+  const obese=used*rate/100;
+  const tp=(+$('sc_pct').value||0)/100, dc=(+$('sc_cost').value||0), of=(+$('sc_off').value||0)/100;
+  const treated=obese*tp, drug=treated*dc, offset=treated*EXCESS_COST*of, net=drug-offset;
+  $('scenario').innerHTML=`<div class="cards">
+    <div class="card"><div class="big">${fmt(Math.round(treated))}</div><div class="lbl">Members treated (${Math.round(tp*100)}% of ~${fmt(Math.round(obese))} with obesity)</div></div>
+    <div class="card bad"><div class="big">$${fmt(Math.round(drug/1e6))}M</div><div class="lbl">Gross annual drug spend</div></div>
+    <div class="card good"><div class="big">$${fmt(Math.round(offset/1e6))}M</div><div class="lbl">Medical cost offset (${Math.round(of*100)}%)</div></div>
+    <div class="card ${net>0?'warn':'good'}"><div class="big">${net>=0?'+':'−'}$${fmt(Math.abs(Math.round(net/1e6)))}M</div><div class="lbl">Net budget impact / yr</div></div>
+  </div><div class="disc">${entered?'':'Using 800,000 illustrative covered lives — enter your number above. '}Defaults reflect 2025–26 evidence (net cost ~$5k; 0% short-term offset for obesity-only, per Prime Therapeutics / ICER) but vary widely by rebate and population — adjust to your contract. ICER finds GLP-1s cost-effective long-term vs lifestyle but flags major short-term budget impact.</div>`;
+}
+
+function renderDisparity(race){
+  const g={};
+  (race||[]).filter(r=>r.data_value).forEach(r=>{const k=r.stratification1;if(!g[k]||+r.yearstart>g[k].y)g[k]={v:+r.data_value,y:+r.yearstart};});
+  const list=Object.entries(g).map(([k,o])=>({g:k,v:o.v,y:o.y})).sort((a,b)=>b.v-a.v);
+  if(!list.length){$('disparity').innerHTML='<div class="note">Race/ethnicity breakdown unavailable for this state.</div>';return;}
+  const max=Math.max(...list.map(r=>r.v));
+  $('disparity').innerHTML='<table>'+list.map(r=>`<tr><td>${r.g}</td><td class="num">${pct(r.v)}</td><td style="width:52%"><div class="barwrap"><div class="bar" style="width:${r.v/max*100}%"></div></div></td><td style="color:var(--muted)">${r.y}</td></tr>`).join('')+'</table>';
+}
+
+function renderMethod(ab,name,lowProxy,corrected,haveIncome){
+  $('method').innerHTML=`<table>
+   <tr><th>Step</th><th>Source / value</th></tr>
+   <tr><td>State &amp; county prevalence</td><td>CDC BRFSS (state, <code>hn4x-zwk7</code>) &amp; PLACES (county, <code>swc5-untb</code>, 2024 release / 2022 data)</td></tr>
+   <tr><td>Medicaid population proxy</td><td>${haveIncome?'BRFSS low-income bands (≤~$25k), 3-yr avg = '+pct(lowProxy):'income breakdown unavailable — state rate used as floor'}; ${NON_EXPANSION.has(ab)?name+' is a non-expansion state':name+' is expansion (138% FPL)'}</td></tr>
+   <tr><td>Self-report correction</td><td>×${SELF_REPORT_CORRECTION} — low-income-specific (NHANES 2021–23 measured 43.4% ÷ BRFSS low-income self-report 37.4%). All-adult factor is ×1.22; we use the subgroup factor that matches the Medicaid proxy.</td></tr>
+   <tr><td>Calibrated Medicaid rate</td><td>≈ ${Math.round(corrected)}% (range ~${Math.round(corrected-2)}–${Math.round(corrected+2)}%); national measured low-income anchor ${NHANES_LOWINC_MEASURED}%</td></tr>
+   <tr><td>Cost</td><td>MEPS excess cost $${fmt(EXCESS_COST)}/adult w/ obesity/yr ($3,097 severe) — Cawley et al., JMCP 2021 (MEPS 2011–16, all-payer; conservative for Medicaid)</td></tr>
+   <tr><td>Need index</td><td>z-scored mean of county obesity + diabetes + physical inactivity</td></tr>
+  </table>
+  <div class="disc">Limitations: BRFSS is self-reported (understates true obesity); PLACES are modeled estimates (not billing-grade); the self-report correction is derived from national NHANES vs BRFSS for the low-income group and applied to each state's proxy (read as a range); cost &amp; scenario figures are illustrative until run on a plan's own data. This is a public-data proxy for the Medicaid population, not actual enrollees.</div>`;
+}
+
+function drawTable(){
+  const rows=[...countyData].sort((a,b)=>(a[sortKey]>b[sortKey]?1:-1)*sortDir);
+  const maxV=Math.max(...rows.map(r=>r.vol));
+  const head=[['county','County'],['ob','Obesity %'],['dia','Diabetes %'],['lpa','Inactivity %'],['index','Need index'],['vol','Volume']];
+  let h='<tr>'+head.map(([k,l])=>`<th class="${k==='county'?'':'num'}" onclick="sortBy('${k}')">${l}${sortKey===k?(sortDir<0?' ▾':' ▴'):''}</th>`).join('')+'</tr>';
+  h+=rows.map(r=>`<tr>
+    <td>${r.prio?'<span class="pill prio">●</span> ':''}${r.county}</td>
+    <td class="num">${pct(r.ob)}</td>
+    <td class="num">${r.dia!=null?pct(r.dia):'—'}</td>
+    <td class="num">${r.lpa!=null?pct(r.lpa):'—'}</td>
+    <td class="num">${r.index>=0?'+':''}${r.index.toFixed(2)}</td>
+    <td class="num"><div style="display:flex;gap:8px;align-items:center;justify-content:flex-end"><span>${fmt(Math.round(r.vol))}</span><div class="barwrap" style="width:70px"><div class="bar" style="width:${r.vol/maxV*100}%"></div></div></div></td>
+  </tr>`).join('');
+  $('countyTbl').innerHTML=h;
+}
+function sortBy(k){ if(sortKey===k)sortDir*=-1; else{sortKey=k;sortDir=(k==='county'?1:-1);} drawTable(); }
+
+// ---------- regional / national compare view ----------
+async function loadCompare(region){
+  const states=REGIONS[region], unit=regionUnit(region);
+  cmpRef=REGION_REF[region];
+  $('compare').style.display='none';
+  $('status').style.display='block'; $('status').className='loading';
+  $('status').textContent=`Loading live CDC data for ${regionLabel(region)} (${states.length} ${unit})…`;
+  try{
+    cmpData=await runBatched(states, async ab=>{
+      const [trend,income]=await Promise.all([
+        getJSON(`${BR}?locationabbr=${ab}&questionid=Q036&stratification1=Total&$select=yearstart,data_value&$order=yearstart&$limit=400`),
+        getJSON(`${BR}?locationabbr=${ab}&questionid=Q036&stratificationcategory1=Income&$select=yearstart,stratification1,data_value&$order=yearstart&$limit=400`)
+      ]);
+      const c=calibrate(ab,trend,income);
+      return {ab,name:STATES[ab],headline:c.latest.v,year:c.latest.y,lowProxy:c.lowProxy,
+              corrected:c.corrected,haveIncome:c.haveIncome,expansion:c.expansion,mult:c.corrected/c.latest.v};
+    }, region==='National'?8:states.length);
+    renderCompare(region);
+    $('status').style.display='none'; $('compare').style.display='block';
+  }catch(e){
+    $('status').className=''; $('status').innerHTML='<div class="err">Could not load CDC data: '+e.message+'. The CDC API may be momentarily unavailable — try again.</div>';
+  }
+}
+
+function renderCompare(region){
+  const unit=regionUnit(region);
+  const sorted=[...cmpData].sort((a,b)=>b.corrected-a.corrected);
+  const top=sorted[0], bottom=sorted[sorted.length-1];
+  const refIdx=sorted.findIndex(r=>r.ab===cmpRef), refRow=sorted[refIdx];
+  const avgCorr=mean(cmpData.map(r=>r.corrected));
+  const refCard = refRow
+    ? `<div class="card warn"><div class="big">#${refIdx+1} of ${cmpData.length}</div><div class="lbl">${refRow.name} rank (calibrated, ~${Math.round(refRow.corrected)}%)</div></div>`
+    : '';
+  $('cmpCards').innerHTML=`
+    <div class="card accent"><div class="big">~${Math.round(top.corrected)}%</div><div class="lbl">Highest calibrated Medicaid-eligible obesity — ${top.name}</div></div>
+    <div class="card"><div class="big">~${Math.round(bottom.corrected)}%</div><div class="lbl">Lowest — ${bottom.name}</div></div>
+    ${refCard}
+    <div class="card"><div class="big">~${Math.round(avgCorr)}%</div><div class="lbl">${region==='National'?'National':'Region'} average (calibrated)</div></div>`;
+  $('cmpTitle').innerHTML=`${regionLabel(region)} — calibrated Medicaid-eligible obesity, ranked <span class="tag">${cmpData.length} ${unit}</span>`;
+  $('cmpNote').innerHTML=`Same engine as the single-state view, run across ${region==='National'?'all 50 states + DC':'the Census '+region+' region'}. The <b>headline</b> is the published state rate; the <b>calibrated</b> column applies the Medicaid low-income proxy + the NHANES self-report correction (×${SELF_REPORT_CORRECTION}, low-income-specific). Click a column to sort. Calibration is state-level, so states missing county detail in the current CDC release (KY, PA) still rank here.`;
+  drawCmpTable();
+  $('cmpDisc').textContent='Calibrated = Medicaid low-income proxy × '+SELF_REPORT_CORRECTION+' self-report correction (derived from NHANES 2021–23 measured vs BRFSS self-report for the low-income group, 43.4% ÷ 37.4%). Read each calibrated figure as a range (~±2 pts), best for ranking relative burden rather than as a precise prevalence. States without a BRFSS income breakdown fall back to the state rate (flagged "no income detail") and so understate their true Medicaid figure.';
+  const refSentence = refRow
+    ? ` <b>${refRow.name} sits #${refIdx+1} of ${cmpData.length}</b> at ~${Math.round(refRow.corrected)}%.`
+    : '';
+  $('cmpInsight').innerHTML=`Across ${regionLabel(region)}, calibrated Medicaid-eligible obesity runs from ~${Math.round(bottom.corrected)}% (${bottom.name}) to ~${Math.round(top.corrected)}% (${top.name}) — a spread the published state headlines hide. <b>${top.name}</b> carries the heaviest relative burden.${refSentence} For a regional plan or MCO, this is where to weight outreach and GLP-1 / care-management budget first. Switch to <b>Single state</b> on any of these for county targeting, cost, and the GLP-1 scenario.`;
+}
+
+function drawCmpTable(){
+  const rows=[...cmpData].sort((a,b)=>{const av=a[cmpSortKey],bv=b[cmpSortKey];return (av>bv?1:av<bv?-1:0)*cmpSortDir;});
+  const maxC=Math.max(...rows.map(r=>r.corrected));
+  const head=[['name','State'],['headline','Headline %'],['lowProxy','Low-income proxy %'],['corrected','Calibrated %'],['mult','× headline'],['expansion','Expansion']];
+  let h='<tr>'+head.map(([k,l])=>`<th class="${k==='name'?'':'num'}" onclick="cmpSortBy('${k}')">${l}${cmpSortKey===k?(cmpSortDir<0?' ▾':' ▴'):''}</th>`).join('')+'</tr>';
+  h+=rows.map(r=>`<tr>
+    <td>${r.ab===cmpRef?'<span class="pill prio">●</span> ':''}${r.name}${r.haveIncome?'':' <span class="tag">no income detail</span>'}</td>
+    <td class="num">${pct(r.headline)}</td>
+    <td class="num">${pct(r.lowProxy)}</td>
+    <td class="num"><div style="display:flex;gap:8px;align-items:center;justify-content:flex-end"><span>~${Math.round(r.corrected)}%</span><div class="barwrap" style="width:80px"><div class="bar" style="width:${r.corrected/maxC*100}%"></div></div></div></td>
+    <td class="num">${r.mult.toFixed(2)}×</td>
+    <td class="num">${r.expansion?'Yes':'No'}</td>
+  </tr>`).join('');
+  $('cmpTbl').innerHTML=h;
+}
+function cmpSortBy(k){ if(cmpSortKey===k)cmpSortDir*=-1; else{cmpSortKey=k;cmpSortDir=(k==='name'?1:-1);} drawCmpTable(); }
+
+// ---------- view routing ----------
+const viewSel=$('view');
+function applyView(){
+  const region=viewSel.value;
+  const isRegion=region!=='single';
+  $('stateWrap').style.display=isRegion?'none':'';
+  $('livesWrap').style.display=isRegion?'none':'';
+  if(isRegion){ $('report').style.display='none'; loadCompare(region); }
+  else { $('compare').style.display='none'; load(); }
+}
+viewSel.onchange=applyView;
+sel.onchange=()=>{ if(viewSel.value==='single') load(); };
+applyView();
+</script>
+</body>
+</html>
